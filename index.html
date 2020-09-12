@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  
+  <style>
+    body {
+      font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";
+      margin: 0;
+      padding: 0;
+      font-size: 16px;
+    }
+    
+    * {
+      box-sizing: border-box;
+    }
+
+    #uploader {
+      margin: 1rem auto;
+      line-height: 1.5;
+      background-color: rgb(190,227,248);
+      border-color: rgb(49,130,206);
+      border-style: dashed;
+      border-width: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.5rem;
+      position: relative;
+      color: rgb(42,67,101);
+      transition-property: background-color,border-color,color,fill,stroke;
+      transition-timing-function: cubic-bezier(.4,0,.2,1);
+      transition-duration: .3s;
+      width: 700px;
+      max-width: 100vw;
+      height: 200px;
+    }
+
+    #map {
+      height: 400px;
+    }
+    
+    #fileInput {
+      border-width: 0;
+      border-style: solid;
+      font-family: inherit;
+      font-size: 100%;
+      margin: 0;
+      overflow: visible;
+      padding: 0;
+      line-height: inherit;
+      color: inherit;
+      opacity: 0;
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+    }
+  </style>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+    integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A=="
+    crossorigin=""/>
+</head>
+<body>
+  <div id="uploader" class="relative bg-blue-200 text-blue-900 border-dashed border-4 border-blue-600 text-4xl lg:text-6xl flex justify-center items-center transition-colors transition duration-300 ease-in-out">
+    Drop files here
+    <input type="file" id="fileInput" multiple class="absolute inset-0 opacity-0">
+  </div>
+  <div id="map"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/exif-js" async></script>
+  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
+    integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA=="
+    crossorigin=""></script>
+  <script>
+    const input = document.getElementById('fileInput');
+    const map = L.map('map');
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+    map.fitWorld().setZoom(2);
+
+    const markersLayer = new L.LayerGroup();
+    markersLayer.addTo(map);
+
+    const parseFile = file => new Promise(resolve => {
+      EXIF.getData(file, function () {
+        resolve(EXIF.getAllTags(this));
+      });
+    });
+
+    const parseAll = files => Promise.all(Array.from(files).map(f => parseFile(f)));
+
+    const dmsToDeg = ([hours, mins, secs]) => hours + mins / 60 + secs / 3600
+
+    const handleFiles = async event => {
+      const data = await parseAll(event.target.files);
+
+      event.target.value = '';
+      markersLayer.clearLayers();
+
+      const markers = data
+        .filter(d => d.GPSLatitude && d.GPSLongitude)
+        .map(d => [dmsToDeg(d.GPSLatitude), dmsToDeg(d.GPSLongitude), d.GPSAltitude]);
+
+      markers.forEach(m => {
+        markersLayer.addLayer(L.marker(m));
+      });
+
+      map.fitBounds(new L.latLngBounds(markers), {padding: [50,50], maxZoom: 16});
+    };
+
+    input.addEventListener('change', handleFiles, false);
+  </script>
+</body>
+</html>
