@@ -100,7 +100,7 @@
 
     const onBodyDrop = async event => {
       event.preventDefault();
-      await handleFiles(event.dataTransfer.files);
+      await handleFiles(Array.from(event.dataTransfer.files).filter(f => f.type.includes('image/')));
     }
 
     const onInputChange = async event => {
