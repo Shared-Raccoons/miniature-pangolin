@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Image information online</title>
+  <!-- application name ? -->
   <meta name="description" content="Imageinf.org is a service for obtaining and modifying image information such as gps coordinates, location, camera, date, time and file info.">
   <meta name="keywords" content="image location, geotag, georeferencing, photo information, image, photo, picture, gps, geo, jpg, coordinates, exif">
   <meta name="yandex-verification" content="a1ab56df91237e08" />
@@ -61,6 +62,27 @@
       bottom: 0;
       left: 0;
     }
+
+    .preview {
+      position: relative;
+      width: 200px;
+      height: 200px;
+      object-fit: cover;
+      border-width: 5px;
+      border-style: solid;
+      border-image-source: url("icon.svg");
+      border-image-slice: 100;
+      border-image-width: 100px;
+      border-image-outset: 0px 0px 50px 0px;
+      border-image-repeat: stretch;
+      border-radius: 100px;
+    }
+
+    .preview::before {
+      content: '';
+      display: block;
+      padding-top: 100%;      
+    }
   </style>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
     integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A=="
@@ -69,7 +91,7 @@
 <body>
   <div id="uploader">
     Drop files here
-    <input type="file" accept="image/*" id="fileInput" multiple>
+    <input type="file" accept="image/*" id="fileInput">
   </div>
   <div id="map"></div>
 
@@ -90,11 +112,19 @@
     const markersLayer = new L.LayerGroup();
     markersLayer.addTo(map);
 
-    const parseFile = file => new Promise(resolve => {
-      EXIF.getData(file, function () {
-        resolve(EXIF.getAllTags(this));
+    const parseFile = async file => {
+      const exifData = await new Promise(resolve => {
+        EXIF.getData(file, function () {
+          resolve(EXIF.getAllTags(this));
+        });
       });
-    });
+      exifData.imgInfOrgPreviewUrl = await new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result);
+        reader.readAsDataURL(file);
+      });
+      return exifData;
+    }
 
     const parseAll = files => Promise.all(Array.from(files).map(f => parseFile(f)));
 
@@ -110,20 +140,28 @@
       event.target.value = '';
     }
 
+    const LeafIcon = L.Icon.extend({
+      options: {
+        iconAnchor:   [95, 215],
+        className: 'preview',
+      }
+    });
+
     const handleFiles = async files => {
-      const data = await parseAll(files);
+      const data = await parseAll([files[0]]);
 
       markersLayer.clearLayers();
 
       const markers = data
         .filter(d => d.GPSLatitude && d.GPSLongitude)
-        .map(d => [dmsToDeg(d.GPSLatitude), dmsToDeg(d.GPSLongitude), d.GPSAltitude]);
+        .map(d => new Object({mark:[dmsToDeg(d.GPSLatitude), dmsToDeg(d.GPSLongitude), d.GPSAltitude], url: d.imgInfOrgPreviewUrl}));
 
       markers.forEach(m => {
-        markersLayer.addLayer(L.marker(m));
+        const icon = new LeafIcon({iconUrl: m.url });
+        markersLayer.addLayer(L.marker(m.mark, {icon}));
       });
 
-      map.fitBounds(new L.latLngBounds(markers), {padding: [50,50], maxZoom: 16});
+      map.fitBounds(new L.latLngBounds(markers.map(m => m.mark)), {padding: [50,50], maxZoom: 16});
     };
 
     input.addEventListener('change', onInputChange, false);
