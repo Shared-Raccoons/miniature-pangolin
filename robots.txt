@@ -1,6 +1,2 @@
 User-agent: *
-Disallow:
-
-User-agent: Yandex
-Disallow:
-Host: https://imageinf.org
+Allow: /
